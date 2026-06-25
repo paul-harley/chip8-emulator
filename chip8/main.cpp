@@ -1,5 +1,4 @@
 #include "Chip8.h"
-#include <SDL3/SDL.h>
 
 
 void testWindow() {
@@ -48,7 +47,7 @@ int main()
     chip8.loadFont();
     chip8.dumpMemory(0x050, 0x09F);
 
-    testWindow();
+    chip8.run();
 
     return 0;
 }
