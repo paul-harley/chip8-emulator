@@ -1,21 +1,18 @@
 #include <iostream>
 #include <string>
+#include <fstream>
+#include <vector>
 #include "chip8.h"
 
 Chip8::Chip8() {
 	pc = 0x200;
+	indexReg = 0;
 
 	//	Init Display
 	SDL_Init(SDL_INIT_VIDEO);
-	
-	int WINDOW_HEIGHT = 32;
-	int WINDOW_WIDTH = 64;
-	int SCALE = 10;
 
 	window = SDL_CreateWindow("Main", WINDOW_WIDTH * SCALE, WINDOW_HEIGHT * SCALE, 0);
 	renderer = SDL_CreateRenderer(window, NULL);
-
-
 
 	delayTimer = 0;
 	soundTimer = 0;
@@ -51,6 +48,28 @@ void Chip8::loadFont() {
 	for (int i = startLoc; i < endLoc; i++ ) {
 		memory[i] = font[i - startLoc];
 	}
+
+}
+
+
+bool Chip8::loadRom(const std::string filename) {
+
+	std::ifstream rom(filename, std::ios::binary);
+
+	if (!rom) {
+		std::cout << "ROM not found...\n";
+		return false;
+	}
+
+	uint8_t byte;
+	uint16_t address = 0x200;
+
+	while (rom.read(reinterpret_cast<char*>(&byte), 1)) {
+		memory[address++] = byte;
+	}
+
+
+	return true;
 
 }
 
@@ -114,3 +133,118 @@ uint16_t Chip8::fetch() {
 
 	return instruction;
 }
+
+
+void Chip8::decode(uint16_t instruction) {
+
+	//X: The second nibble. Used to look up one of the 16 registers(VX) from V0 through VF.
+	//Y : The third nibble. Also used to look up one of the 16 registers(VY) from V0 through VF.
+	//N : The fourth nibble. A 4 - bit number.
+	//NN : The second byte (third and fourth nibbles). An 8 - bit immediate number.
+	//NNN : The second, third and fourth nibbles. A 12 - bit immediate memory address.
+
+	uint8_t X = (instruction >> 8) & 0x0F;
+	uint8_t Y = (instruction >> 4) & 0x00F;
+	uint8_t N = instruction & 0x000F;
+	uint8_t NN = instruction & 0x00FF;
+	uint16_t NNN = instruction & 0x0FFF;
+
+
+	uint16_t opcode = instruction & 0xF000;
+
+	// Decoding time 
+
+	switch (opcode) {
+		//00E0 (clear screen)
+		case 0x00E0:
+			clearScreen();
+			break;
+
+
+		//1NNN (jump)
+		//6XNN (set register VX)
+		//7XNN (add value to register VX)
+		//ANNN (set index register I)
+		
+		case 0xD000:
+			draw(registers[X], registers[Y], N);
+			break;
+	
+	
+	
+	
+	}
+}
+
+
+
+void Chip8::clearScreen() {
+
+	for (uint8_t i = 0; i < WINDOW_WIDTH; i++) {
+		for (uint8_t k = 0; k < WINDOW_HEIGHT; k++) {
+			display[i, k] = 0;
+		}
+	}
+	
+}
+
+void Chip8::jump(uint16_t jump_loc) {
+	pc = jump_loc;
+}
+
+void Chip8::setReg(uint8_t reg, uint8_t value) {
+	registers[reg] = value;
+}
+
+void Chip8::addToReg(int8_t reg, uint8_t value) {
+	registers[reg] += value;
+}
+
+
+void Chip8::setIndex(uint16_t value) {
+	indexReg = value;
+}
+
+void Chip8::draw(uint8_t x, uint8_t y, uint8_t n) {
+
+	x = x % WINDOW_WIDTH;
+	y = y % WINDOW_WIDTH;
+
+	registers[0xF] = 0;
+
+	for (uint8_t i = 0; i < n; i++) {
+
+		y += n;
+		uint8_t x_offset = 0;
+
+		uint8_t spriteData = memory[indexReg + n];
+
+		// mask goes from 1000 0000 -> 0100 0000 -> 0010 0000 -> ...
+		for (uint8_t mask = 0x80; mask != 0; mask >>= 1) {
+			
+			x += x_offset;
+
+			if (spriteData & mask) {
+				// bit is 1
+				if (display[x, y] == 1) {
+					display[x, y] = 0;
+				}
+
+				else {
+					display[x, y] = 1;
+				}
+
+			}
+
+
+			x_offset++;
+			if (x > WINDOW_WIDTH || y > WINDOW_HEIGHT) {
+				break;
+			}
+
+		}
+	}
+
+}
+
+
